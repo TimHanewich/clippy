@@ -417,8 +417,10 @@ def main():
                 title = selected_clip.get("title", "clip")
 
                 # Create output folder named after the selected clip number
+                clips_dir = os.path.join(os.getcwd(), "CLIPS")
+                os.makedirs(clips_dir, exist_ok=True)
                 folder_name = f"CLIP{clip_index + 1}"
-                folder_path = os.path.join(os.getcwd(), folder_name)
+                folder_path = os.path.join(clips_dir, folder_name)
                 if os.path.exists(folder_path):
                     shutil.rmtree(folder_path)
                 os.makedirs(folder_path)
