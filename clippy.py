@@ -437,10 +437,11 @@ def main():
                 result = subprocess.run(
                     [
                         "ffmpeg", "-y",
-                        "-i", source_file_path,
                         "-ss", str(start_seconds),
+                        "-i", source_file_path,
                         "-t", str(duration_secs),
-                        "-c", "copy",
+                        "-c:v", "libx264",
+                        "-c:a", "aac",
                         output_clip_path,
                     ],
                     capture_output=True,
