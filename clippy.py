@@ -33,7 +33,6 @@ def load_config():
         print("  speech_endpoint  - Your Azure Speech endpoint URL")
         print("  speech_api_key   - Your Azure Speech API key")
         print()
-
         print("FOR CLIP SELECTION")
         print("This contains values for a connection to a particular language model in Foundry that will review the transcript and select what to clip out.")
         print("  foundry_endpoint - Your Azure AI Foundry endpoint URL")
