@@ -446,6 +446,13 @@ def extract_clip(clip_index, clip, source_file_path, phrases, user_input):
 
 
 def main():
+    print("=" * 50)
+    print("  CLIPPY")
+    print("  https://github.com/TimHanewich/clippy")
+    print("  AI-powered video clipping from long-form content.")
+    print("=" * 50)
+    print()
+
     if not validate_dependencies():
         return
 
