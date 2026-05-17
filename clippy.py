@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import shutil
 import subprocess
 import tempfile
 from urllib.parse import urlparse
@@ -387,7 +388,6 @@ def main():
                 print(f"Duration: {format_duration(duration)}")
                 print()
 
-            clip_number = 1
             while True:
                 print(f"Which clip would you like to extract? (1-{len(clips)}, or 'q' to quit)")
                 try:
@@ -416,10 +416,12 @@ def main():
                 end_seconds = selected_clip.get("end_seconds", 0)
                 title = selected_clip.get("title", "clip")
 
-                # Create output folder
-                folder_name = f"CLIP{clip_number}"
+                # Create output folder named after the selected clip number
+                folder_name = f"CLIP{clip_index + 1}"
                 folder_path = os.path.join(os.getcwd(), folder_name)
-                os.makedirs(folder_path, exist_ok=True)
+                if os.path.exists(folder_path):
+                    shutil.rmtree(folder_path)
+                os.makedirs(folder_path)
 
                 source_ext = os.path.splitext(source_file_path)[1] or ".mp4"
                 output_clip_path = os.path.join(folder_path, f"clip{source_ext}")
@@ -463,7 +465,6 @@ def main():
 
                 print(f"Done! Saved to: {folder_path}")
                 print()
-                clip_number += 1
 
     except Exception as ex:
         print(file=sys.stderr)
