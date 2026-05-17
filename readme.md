@@ -2,6 +2,8 @@
 
 AI-powered video clipping from long-form content. Give it a YouTube URL or local video file, and Clippy will transcribe it, identify the most compelling segments, and extract them as standalone clips, ready to post.
 
+![screenshot](https://i.imgur.com/vOzSNT7.png)
+
 ## What It Does
 
 1. **Downloads** the video (YouTube URLs are downloaded as MP4 automatically)
