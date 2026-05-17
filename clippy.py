@@ -79,7 +79,9 @@ def is_youtube_url(input_str):
 
 def download_youtube_video(url):
     output_directory = os.path.join(tempfile.gettempdir(), "clippy-downloads")
-    os.makedirs(output_directory, exist_ok=True)
+    if os.path.exists(output_directory):
+        shutil.rmtree(output_directory)
+    os.makedirs(output_directory)
     output_template = os.path.join(output_directory, "%(title)s [%(id)s].%(ext)s")
 
     downloaded_file = None
