@@ -562,7 +562,7 @@ def main():
     if os.path.exists(clips_dir):
         shutil.rmtree(clips_dir)
 
-    print("Welcome to Clippy Transcriber.")
+    print("Welcome to Clippy!")
     print("Enter the path to a video/audio file or a YouTube URL:")
     try:
         user_input = input("> ").strip()
