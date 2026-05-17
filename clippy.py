@@ -474,7 +474,7 @@ def main():
                 # Write info file with title and reason
                 info_path = os.path.join(folder_path, "info.md")
                 with open(info_path, "w", encoding="utf-8") as f:
-                    f.write(f"# {title}\n\n{selected_clip.get('reason', '')}\n")
+                    f.write(f"# {title}\n\n{selected_clip.get('reason', '')}\n\nClipped from {user_input}\n")
 
                 print(f"Done! Saved to: {folder_path}")
                 print()
