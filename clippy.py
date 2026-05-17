@@ -70,7 +70,7 @@ def is_youtube_url(input_str):
         return False
 
 
-def download_youtube_audio_as_mp3(url):
+def download_youtube_video(url):
     output_directory = os.path.join(tempfile.gettempdir(), "clippy-downloads")
     os.makedirs(output_directory, exist_ok=True)
     output_template = os.path.join(output_directory, "%(title)s [%(id)s].%(ext)s")
@@ -83,13 +83,8 @@ def download_youtube_audio_as_mp3(url):
             downloaded_file = d.get("filename")
 
     ydl_opts = {
-        "format": "bestaudio/best",
-        "extract_audio": True,
-        "postprocessors": [{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": "mp3",
-            "preferredquality": "0",
-        }],
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "merge_output_format": "mp4",
         "outtmpl": output_template,
         "progress_hooks": [progress_hook],
         "quiet": True,
@@ -98,22 +93,42 @@ def download_youtube_audio_as_mp3(url):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
 
-    # The post-processor changes the extension to .mp3
     if downloaded_file:
-        mp3_path = os.path.splitext(downloaded_file)[0] + ".mp3"
-        if os.path.isfile(mp3_path):
-            return mp3_path
+        mp4_path = os.path.splitext(downloaded_file)[0] + ".mp4"
+        if os.path.isfile(mp4_path):
+            return mp4_path
+        if os.path.isfile(downloaded_file):
+            return downloaded_file
 
-    # Fallback: find the most recently created mp3 in the output directory
-    mp3_files = [
+    # Fallback: find the most recently created mp4 in the output directory
+    mp4_files = [
         os.path.join(output_directory, f)
         for f in os.listdir(output_directory)
-        if f.endswith(".mp3")
+        if f.endswith(".mp4")
     ]
-    if mp3_files:
-        return max(mp3_files, key=os.path.getmtime)
+    if mp4_files:
+        return max(mp4_files, key=os.path.getmtime)
 
-    raise RuntimeError("yt-dlp completed, but no MP3 file was found.")
+    raise RuntimeError("yt-dlp completed, but no MP4 file was found.")
+
+
+def convert_to_mp3(video_path):
+    mp3_path = os.path.splitext(video_path)[0] + ".mp3"
+    result = subprocess.run(
+        [
+            "ffmpeg", "-y",
+            "-i", video_path,
+            "-vn",
+            "-acodec", "libmp3lame",
+            "-q:a", "0",
+            mp3_path,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError("ffmpeg failed to convert video to MP3:\n" + result.stderr)
+    return mp3_path
 
 
 def transcribe_audio(audio_file_path, config):
@@ -306,7 +321,7 @@ def main():
     config = load_config()
 
     print("Welcome to Clippy Transcriber.")
-    print("Enter the path to an MP3 file or a YouTube URL:")
+    print("Enter the path to a video/audio file or a YouTube URL:")
     try:
         user_input = input("> ").strip()
     except (EOFError, KeyboardInterrupt):
@@ -318,17 +333,27 @@ def main():
         return
 
     try:
-        audio_file_path = user_input
+        source_file_path = user_input
 
         if is_youtube_url(user_input):
             print()
-            print("Detected a YouTube URL. Downloading audio as MP3...")
-            audio_file_path = download_youtube_audio_as_mp3(user_input)
-            print(f"Audio downloaded to: {audio_file_path}")
+            print("Detected a YouTube URL. Downloading video as MP4...")
+            source_file_path = download_youtube_video(user_input)
+            print(f"Video downloaded to: {source_file_path}")
 
-        if not os.path.isfile(audio_file_path):
-            print(f"Audio file not found: {audio_file_path}", file=sys.stderr)
+        if not os.path.isfile(source_file_path):
+            print(f"File not found: {source_file_path}", file=sys.stderr)
             return
+
+        # If source is a video, extract audio as MP3 for transcription
+        ext_lower = os.path.splitext(source_file_path)[1].lower()
+        if ext_lower in (".mp4", ".mkv", ".webm", ".avi", ".mov"):
+            print()
+            print("Converting video to MP3 for transcription...")
+            audio_file_path = convert_to_mp3(source_file_path)
+            print(f"Audio extracted to: {audio_file_path}")
+        else:
+            audio_file_path = source_file_path
 
         print()
         print("Step 1 of 2: Transcribing audio...")
@@ -396,8 +421,8 @@ def main():
                 folder_path = os.path.join(os.getcwd(), folder_name)
                 os.makedirs(folder_path, exist_ok=True)
 
-                ext = os.path.splitext(audio_file_path)[1] or ".mp3"
-                output_audio_path = os.path.join(folder_path, f"audio{ext}")
+                source_ext = os.path.splitext(source_file_path)[1] or ".mp4"
+                output_clip_path = os.path.join(folder_path, f"clip{source_ext}")
 
                 print()
                 print(f"Extracting clip: {title}")
@@ -408,11 +433,11 @@ def main():
                 result = subprocess.run(
                     [
                         "ffmpeg", "-y",
-                        "-i", audio_file_path,
+                        "-i", source_file_path,
                         "-ss", str(start_seconds),
                         "-t", str(duration_secs),
                         "-c", "copy",
-                        output_audio_path,
+                        output_clip_path,
                     ],
                     capture_output=True,
                     text=True,
