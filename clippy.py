@@ -383,9 +383,13 @@ def validate_dependencies():
     return all_ok
 
 
-def generate_tailored_content(clip_transcript, title, purpose, config):
+def generate_tailored_content(clip_transcript, title, purpose, config, source_url=None):
     endpoint = config["foundry_endpoint"].rstrip("/")
     request_url = f"{endpoint}/openai/responses?api-version=2025-04-01-preview"
+
+    source_instruction = ""
+    if source_url:
+        source_instruction = f'\n\nAt the end of the content, include a line like "Clipped from {source_url}" as a natural sign-off or attribution.'
 
     prompt = f"""I have a video clip titled "{title}" with the following transcript:
 
@@ -393,7 +397,7 @@ def generate_tailored_content(clip_transcript, title, purpose, config):
 
 The user's goal: {purpose}
 
-Based on the transcript and the user's goal, generate tailored content that helps them accomplish what they described. For example, if they want to post on LinkedIn, write a compelling LinkedIn post. If they want to create a tweet thread, write that. If they want a blog excerpt, write that. Match the format to their stated goal.
+Based on the transcript and the user's goal, generate tailored content that helps them accomplish what they described. For example, if they want to post on LinkedIn, write a compelling LinkedIn post. If they want to create a tweet thread, write that. If they want a blog excerpt, write that. Match the format to their stated goal.{source_instruction}
 
 Return ONLY the tailored content, ready to use. No preamble or explanation."""
 
@@ -509,8 +513,9 @@ def extract_clip(clip_index, clip, source_file_path, phrases, user_input, purpos
     # Generate tailored content if the user specified a purpose
     if purpose:
         print(f"  Generating tailored content...")
+        source_url = user_input if is_youtube_url(user_input) else None
         try:
-            tailored = generate_tailored_content(clip_transcript_text, title, purpose, config)
+            tailored = generate_tailored_content(clip_transcript_text, title, purpose, config, source_url)
             if tailored:
                 info_content += f"\n## Tailored Content\n\n{tailored}\n"
         except Exception as e:
