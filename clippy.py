@@ -229,6 +229,8 @@ Requirements:
 - Choose up to {preferred_clip_count} clips.
 - Each clip should ideally be between {min_clip_seconds} and {max_clip_seconds} seconds long.
 - If the transcript is too short or does not support that many clips, return fewer clips.
+- Each clip should get into its core idea immediately — start the clip right when the compelling subject matter begins, not during unrelated preamble or small talk leading up to it.
+- End each clip before the conversation trails off into a different topic. Cut it tight — the clip should feel focused and self-contained around a single idea or moment.
 - Prefer clips with clean starts and clean endings.
 - Avoid overlapping clips unless overlap is truly necessary.
 - Base your timing on the transcript timestamps.
