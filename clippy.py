@@ -321,6 +321,11 @@ def format_duration(total_seconds):
 def main():
     config = load_config()
 
+    # Clear previous clips
+    clips_dir = os.path.join(os.getcwd(), "CLIPS")
+    if os.path.exists(clips_dir):
+        shutil.rmtree(clips_dir)
+
     print("Welcome to Clippy Transcriber.")
     print("Enter the path to a video/audio file or a YouTube URL:")
     try:
