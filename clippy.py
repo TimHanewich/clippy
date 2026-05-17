@@ -318,7 +318,73 @@ def format_duration(total_seconds):
     return f"{minutes}:{seconds:02d}"
 
 
+def validate_dependencies():
+    print("Checking dependencies...")
+    print()
+    all_ok = True
+
+    # Python libraries
+    for module_name, pip_name in [("requests", "requests"), ("yt_dlp", "yt-dlp")]:
+        try:
+            __import__(module_name)
+            print(f"  [OK] Python library '{pip_name}' is installed.")
+        except ImportError:
+            print(f"  [FAIL] Python library '{pip_name}' is not installed. Run: pip install {pip_name}")
+            all_ok = False
+
+    # ffmpeg
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-version"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            version_line = result.stdout.splitlines()[0] if result.stdout else "unknown version"
+            print(f"  [OK] ffmpeg is installed. ({version_line})")
+        else:
+            print("  [FAIL] ffmpeg returned an error.")
+            all_ok = False
+    except FileNotFoundError:
+        print("  [FAIL] ffmpeg is not installed or not on PATH.")
+        all_ok = False
+
+    # config.json
+    if not os.path.isfile(CONFIG_FILE):
+        print(f"  [FAIL] config.json not found. It will be created on first run at: {CONFIG_FILE}")
+        all_ok = False
+    else:
+        print(f"  [OK] config.json found.")
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                config = json.load(f)
+
+            required_keys = ["speech_endpoint", "speech_api_key", "foundry_endpoint", "foundry_api_key", "foundry_model"]
+            for key in required_keys:
+                value = config.get(key, "")
+                if not value or (isinstance(value, str) and value.startswith("<") and value.endswith(">")):
+                    print(f"  [FAIL] config.json: '{key}' is missing or still a placeholder.")
+                    all_ok = False
+                else:
+                    print(f"  [OK] config.json: '{key}' is set.")
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"  [FAIL] config.json could not be parsed: {e}")
+            all_ok = False
+
+    print()
+    if all_ok:
+        print("All dependencies OK.")
+    else:
+        print("One or more dependencies are missing. Please fix the issues above.")
+    print()
+
+    return all_ok
+
+
 def main():
+    if not validate_dependencies():
+        return
+
     config = load_config()
 
     # Clear previous clips
