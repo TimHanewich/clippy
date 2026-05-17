@@ -381,6 +381,70 @@ def validate_dependencies():
     return all_ok
 
 
+def extract_clip(clip_index, clip, source_file_path, phrases, user_input):
+    start_seconds = clip.get("start_seconds", 0)
+    end_seconds = clip.get("end_seconds", 0)
+    title = clip.get("title", "clip")
+
+    # Create output folder named after the selected clip number
+    clips_dir = os.path.join(os.getcwd(), "CLIPS")
+    os.makedirs(clips_dir, exist_ok=True)
+    folder_name = f"CLIP{clip_index + 1}"
+    folder_path = os.path.join(clips_dir, folder_name)
+    if os.path.exists(folder_path):
+        shutil.rmtree(folder_path)
+    os.makedirs(folder_path)
+
+    source_ext = os.path.splitext(source_file_path)[1] or ".mp4"
+    output_clip_path = os.path.join(folder_path, f"clip{source_ext}")
+
+    print()
+    print(f"Extracting clip {clip_index + 1}: {title}")
+    print(f"  From {format_duration(start_seconds)} to {format_duration(end_seconds)}")
+    print(f"  Saving to: CLIPS/{folder_name}/")
+
+    duration_secs = end_seconds - start_seconds
+    result = subprocess.run(
+        [
+            "ffmpeg", "-y",
+            "-ss", str(start_seconds),
+            "-i", source_file_path,
+            "-t", str(duration_secs),
+            "-c:v", "libx264",
+            "-c:a", "aac",
+            output_clip_path,
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        print("ffmpeg failed:", file=sys.stderr)
+        print(result.stderr, file=sys.stderr)
+        print()
+        return
+
+    # Write transcript for this clip's time range
+    clip_transcript_lines = []
+    start_ms = start_seconds * 1000
+    end_ms = end_seconds * 1000
+    for phrase in phrases:
+        if phrase["end_ms"] > start_ms and phrase["start_ms"] < end_ms:
+            clip_transcript_lines.append(phrase["text"].strip())
+
+    transcript_path = os.path.join(folder_path, "transcript.txt")
+    with open(transcript_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(clip_transcript_lines))
+
+    # Write info file with title and reason
+    info_path = os.path.join(folder_path, "info.md")
+    with open(info_path, "w", encoding="utf-8") as f:
+        f.write(f"# {title}\n\n{clip.get('reason', '')}\n\nClipped from {user_input}\n")
+
+    print(f"Done! Saved to: {folder_path}")
+    print()
+
+
 def main():
     if not validate_dependencies():
         return
@@ -460,7 +524,7 @@ def main():
                 print()
 
             while True:
-                print(f"Which clip would you like to extract? (1-{len(clips)}, or 'q' to quit)")
+                print(f"Which clip would you like to extract? (1-{len(clips)}, 'all', or 'q' to quit)")
                 try:
                     choice = input("> ").strip()
                 except (EOFError, KeyboardInterrupt):
@@ -469,6 +533,13 @@ def main():
 
                 if choice.lower() == "q":
                     break
+
+                if choice.lower() == "all":
+                    for idx in range(len(clips)):
+                        extract_clip(idx, clips[idx], source_file_path, phrases, user_input)
+                    print("All clips extracted.")
+                    print()
+                    continue
 
                 try:
                     clip_index = int(choice) - 1
@@ -482,68 +553,7 @@ def main():
                     print()
                     continue
 
-                selected_clip = clips[clip_index]
-                start_seconds = selected_clip.get("start_seconds", 0)
-                end_seconds = selected_clip.get("end_seconds", 0)
-                title = selected_clip.get("title", "clip")
-
-                # Create output folder named after the selected clip number
-                clips_dir = os.path.join(os.getcwd(), "CLIPS")
-                os.makedirs(clips_dir, exist_ok=True)
-                folder_name = f"CLIP{clip_index + 1}"
-                folder_path = os.path.join(clips_dir, folder_name)
-                if os.path.exists(folder_path):
-                    shutil.rmtree(folder_path)
-                os.makedirs(folder_path)
-
-                source_ext = os.path.splitext(source_file_path)[1] or ".mp4"
-                output_clip_path = os.path.join(folder_path, f"clip{source_ext}")
-
-                print()
-                print(f"Extracting clip: {title}")
-                print(f"  From {format_duration(start_seconds)} to {format_duration(end_seconds)}")
-                print(f"  Saving to: {folder_name}/")
-
-                duration_secs = end_seconds - start_seconds
-                result = subprocess.run(
-                    [
-                        "ffmpeg", "-y",
-                        "-ss", str(start_seconds),
-                        "-i", source_file_path,
-                        "-t", str(duration_secs),
-                        "-c:v", "libx264",
-                        "-c:a", "aac",
-                        output_clip_path,
-                    ],
-                    capture_output=True,
-                    text=True,
-                )
-
-                if result.returncode != 0:
-                    print("ffmpeg failed:", file=sys.stderr)
-                    print(result.stderr, file=sys.stderr)
-                    print()
-                    continue
-
-                # Write transcript for this clip's time range
-                clip_transcript_lines = []
-                start_ms = start_seconds * 1000
-                end_ms = end_seconds * 1000
-                for phrase in phrases:
-                    if phrase["end_ms"] > start_ms and phrase["start_ms"] < end_ms:
-                        clip_transcript_lines.append(phrase["text"].strip())
-
-                transcript_path = os.path.join(folder_path, "transcript.txt")
-                with open(transcript_path, "w", encoding="utf-8") as f:
-                    f.write("\n".join(clip_transcript_lines))
-
-                # Write info file with title and reason
-                info_path = os.path.join(folder_path, "info.md")
-                with open(info_path, "w", encoding="utf-8") as f:
-                    f.write(f"# {title}\n\n{selected_clip.get('reason', '')}\n\nClipped from {user_input}\n")
-
-                print(f"Done! Saved to: {folder_path}")
-                print()
+                extract_clip(clip_index, clips[clip_index], source_file_path, phrases, user_input)
 
     except Exception as ex:
         print(file=sys.stderr)
