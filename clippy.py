@@ -381,7 +381,70 @@ def validate_dependencies():
     return all_ok
 
 
-def extract_clip(clip_index, clip, source_file_path, phrases, user_input):
+def generate_tailored_content(clip_transcript, title, purpose, config):
+    endpoint = config["foundry_endpoint"].rstrip("/")
+    request_url = f"{endpoint}/openai/responses?api-version=2025-04-01-preview"
+
+    prompt = f"""I have a video clip titled "{title}" with the following transcript:
+
+{clip_transcript}
+
+The user's goal: {purpose}
+
+Based on the transcript and the user's goal, generate tailored content that helps them accomplish what they described. For example, if they want to post on LinkedIn, write a compelling LinkedIn post. If they want to create a tweet thread, write that. If they want a blog excerpt, write that. Match the format to their stated goal.
+
+Return ONLY the tailored content, ready to use. No preamble or explanation."""
+
+    payload = {
+        "model": config["foundry_model"],
+        "input": [
+            {
+                "role": "developer",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": (
+                            "You are a skilled content writer who adapts tone and format to match "
+                            "the user's intended platform and audience. Be concise, engaging, and authentic."
+                        ),
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": prompt,
+                    }
+                ],
+            },
+        ],
+        "background": False,
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+        "api-key": config["foundry_api_key"],
+    }
+
+    response = requests.post(request_url, headers=headers, json=payload, timeout=86400)
+    response.raise_for_status()
+
+    body = response.json()
+
+    response_text = ""
+    for output in body.get("output", []):
+        if output.get("type") == "message":
+            content = output.get("content", [])
+            if content:
+                response_text = content[0].get("text", "")
+                break
+
+    return response_text.strip()
+
+
+def extract_clip(clip_index, clip, source_file_path, phrases, user_input, purpose, config):
     start_seconds = clip.get("start_seconds", 0)
     end_seconds = clip.get("end_seconds", 0)
     title = clip.get("title", "clip")
@@ -432,14 +495,28 @@ def extract_clip(clip_index, clip, source_file_path, phrases, user_input):
         if phrase["end_ms"] > start_ms and phrase["start_ms"] < end_ms:
             clip_transcript_lines.append(phrase["text"].strip())
 
+    clip_transcript_text = "\n".join(clip_transcript_lines)
+
     transcript_path = os.path.join(folder_path, "transcript.txt")
     with open(transcript_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(clip_transcript_lines))
+        f.write(clip_transcript_text)
 
     # Write info file with title and reason
+    info_content = f"# {title}\n\n{clip.get('reason', '')}\n\nClipped from {user_input}\n"
+
+    # Generate tailored content if the user specified a purpose
+    if purpose:
+        print(f"  Generating tailored content...")
+        try:
+            tailored = generate_tailored_content(clip_transcript_text, title, purpose, config)
+            if tailored:
+                info_content += f"\n## Tailored Content\n\n{tailored}\n"
+        except Exception as e:
+            print(f"  Warning: Could not generate tailored content: {e}")
+
     info_path = os.path.join(folder_path, "info.md")
     with open(info_path, "w", encoding="utf-8") as f:
-        f.write(f"# {title}\n\n{clip.get('reason', '')}\n\nClipped from {user_input}\n")
+        f.write(info_content)
 
     print(f"Done! Saved to: {folder_path}")
     print()
@@ -541,26 +618,40 @@ def main():
                 if choice.lower() == "q":
                     break
 
+                # Determine which clips to extract
                 if choice.lower() == "all":
-                    for idx in range(len(clips)):
-                        extract_clip(idx, clips[idx], source_file_path, phrases, user_input)
-                    print("All clips extracted.")
-                    print()
-                    continue
+                    indices_to_extract = list(range(len(clips)))
+                else:
+                    try:
+                        clip_index = int(choice) - 1
+                    except ValueError:
+                        print("Invalid selection.")
+                        print()
+                        continue
 
+                    if clip_index < 0 or clip_index >= len(clips):
+                        print(f"Please choose a number between 1 and {len(clips)}.")
+                        print()
+                        continue
+
+                    indices_to_extract = [clip_index]
+
+                # Ask about purpose/tailored content
+                print()
+                print("What are you clipping this for? (e.g. 'LinkedIn post', 'tweet thread', 'blog excerpt')")
+                print("Or press Enter to skip tailored content generation.")
                 try:
-                    clip_index = int(choice) - 1
-                except ValueError:
-                    print("Invalid selection.")
+                    purpose = input("> ").strip()
+                except (EOFError, KeyboardInterrupt):
                     print()
-                    continue
+                    break
 
-                if clip_index < 0 or clip_index >= len(clips):
-                    print(f"Please choose a number between 1 and {len(clips)}.")
-                    print()
-                    continue
+                for idx in indices_to_extract:
+                    extract_clip(idx, clips[idx], source_file_path, phrases, user_input, purpose, config)
 
-                extract_clip(clip_index, clips[clip_index], source_file_path, phrases, user_input)
+                if len(indices_to_extract) > 1:
+                    print("All clips extracted.")
+                print()
 
     except Exception as ex:
         print(file=sys.stderr)
