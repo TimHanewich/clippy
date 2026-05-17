@@ -204,10 +204,19 @@ def build_timestamped_transcript(phrases):
     return "\n".join(lines)
 
 
-def build_clip_selection_prompt(timestamped_transcript, preferred_clip_count=5, min_clip_seconds=300, max_clip_seconds=600):
-    return f"""Analyze the timestamped transcript below and choose the most interesting clips for reuse.
+def build_clip_selection_prompt(timestamped_transcript, preferred_clip_count=5, min_clip_seconds=300, max_clip_seconds=600, guidance=""):
+    guidance_section = ""
+    if guidance:
+        guidance_section = f"""
+Additional guidance from the user:
+{guidance}
 
-Your goal is to identify the strongest segments that could stand alone as compelling clips.
+Prioritize clips that match this guidance. If the guidance specifies a theme or topic, focus on segments that are most relevant to it.
+
+"""
+
+    return f"""Analyze the timestamped transcript below and choose the most interesting clips for reuse.
+{guidance_section}Your goal is to identify the strongest segments that could stand alone as compelling clips.
 Look for moments with any of the following:
 - emotionally intense exchanges
 - surprising revelations
@@ -242,13 +251,13 @@ Timestamped transcript:
 {timestamped_transcript}"""
 
 
-def select_interesting_clips(phrases, config):
+def select_interesting_clips(phrases, config, guidance=""):
     timestamped_transcript = build_timestamped_transcript(phrases)
 
     endpoint = config["foundry_endpoint"].rstrip("/")
     request_url = f"{endpoint}/openai/responses?api-version=2025-04-01-preview"
 
-    prompt = build_clip_selection_prompt(timestamped_transcript)
+    prompt = build_clip_selection_prompt(timestamped_transcript, guidance=guidance)
 
     payload = {
         "model": config["foundry_model"],
@@ -559,6 +568,16 @@ def main():
         print("No file path or URL was provided.", file=sys.stderr)
         return
 
+    # Ask for optional clipping guidance
+    print()
+    print("Any guidance for the clipper? (e.g. 'focus on AI topics', 'find the funniest moments')")
+    print("Or press Enter to skip.")
+    try:
+        clipping_guidance = input("> ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return
+
     try:
         source_file_path = user_input
 
@@ -595,7 +614,7 @@ def main():
 
         print("Step 2 of 2: Selecting interesting clips with Foundry...")
 
-        clips = select_interesting_clips(phrases, config)
+        clips = select_interesting_clips(phrases, config, clipping_guidance)
 
         print("Step 2 of 2 complete.")
         print()
