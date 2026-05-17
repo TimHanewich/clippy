@@ -362,67 +362,83 @@ def main():
                 print(f"Duration: {format_duration(duration)}")
                 print()
 
-            # Prompt user to pick a clip
-            print(f"Which clip would you like to extract? (1-{len(clips)}, or 'q' to quit)")
-            try:
-                choice = input("> ").strip()
-            except (EOFError, KeyboardInterrupt):
+            clip_number = 1
+            while True:
+                print(f"Which clip would you like to extract? (1-{len(clips)}, or 'q' to quit)")
+                try:
+                    choice = input("> ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print()
+                    break
+
+                if choice.lower() == "q":
+                    break
+
+                try:
+                    clip_index = int(choice) - 1
+                except ValueError:
+                    print("Invalid selection.")
+                    print()
+                    continue
+
+                if clip_index < 0 or clip_index >= len(clips):
+                    print(f"Please choose a number between 1 and {len(clips)}.")
+                    print()
+                    continue
+
+                selected_clip = clips[clip_index]
+                start_seconds = selected_clip.get("start_seconds", 0)
+                end_seconds = selected_clip.get("end_seconds", 0)
+                title = selected_clip.get("title", "clip")
+
+                # Create output folder
+                folder_name = f"CLIP{clip_number}"
+                folder_path = os.path.join(os.getcwd(), folder_name)
+                os.makedirs(folder_path, exist_ok=True)
+
+                ext = os.path.splitext(audio_file_path)[1] or ".mp3"
+                output_audio_path = os.path.join(folder_path, f"audio{ext}")
+
                 print()
-                return
+                print(f"Extracting clip: {title}")
+                print(f"  From {format_duration(start_seconds)} to {format_duration(end_seconds)}")
+                print(f"  Saving to: {folder_name}/")
 
-            if choice.lower() == "q":
-                return
+                duration_secs = end_seconds - start_seconds
+                result = subprocess.run(
+                    [
+                        "ffmpeg", "-y",
+                        "-i", audio_file_path,
+                        "-ss", str(start_seconds),
+                        "-t", str(duration_secs),
+                        "-c", "copy",
+                        output_audio_path,
+                    ],
+                    capture_output=True,
+                    text=True,
+                )
 
-            try:
-                clip_index = int(choice) - 1
-            except ValueError:
-                print("Invalid selection.", file=sys.stderr)
-                return
+                if result.returncode != 0:
+                    print("ffmpeg failed:", file=sys.stderr)
+                    print(result.stderr, file=sys.stderr)
+                    print()
+                    continue
 
-            if clip_index < 0 or clip_index >= len(clips):
-                print(f"Please choose a number between 1 and {len(clips)}.", file=sys.stderr)
-                return
+                # Write transcript for this clip's time range
+                clip_transcript_lines = []
+                start_ms = start_seconds * 1000
+                end_ms = end_seconds * 1000
+                for phrase in phrases:
+                    if phrase["end_ms"] > start_ms and phrase["start_ms"] < end_ms:
+                        clip_transcript_lines.append(phrase["text"].strip())
 
-            selected_clip = clips[clip_index]
-            start_seconds = selected_clip.get("start_seconds", 0)
-            end_seconds = selected_clip.get("end_seconds", 0)
-            title = selected_clip.get("title", "clip")
+                transcript_path = os.path.join(folder_path, "transcript.txt")
+                with open(transcript_path, "w", encoding="utf-8") as f:
+                    f.write("\n".join(clip_transcript_lines))
 
-            # Sanitize title for filename
-            safe_title = "".join(c if c.isalnum() or c in " -_" else "" for c in title).strip()
-            if not safe_title:
-                safe_title = f"clip_{clip_index + 1}"
-
-            ext = os.path.splitext(audio_file_path)[1] or ".mp3"
-            output_filename = f"{safe_title}{ext}"
-            output_path = os.path.join(os.getcwd(), output_filename)
-
-            print()
-            print(f"Extracting clip: {title}")
-            print(f"  From {format_duration(start_seconds)} to {format_duration(end_seconds)}")
-            print(f"  Saving to: {output_filename}")
-
-            duration_secs = end_seconds - start_seconds
-            result = subprocess.run(
-                [
-                    "ffmpeg", "-y",
-                    "-i", audio_file_path,
-                    "-ss", str(start_seconds),
-                    "-t", str(duration_secs),
-                    "-c", "copy",
-                    output_path,
-                ],
-                capture_output=True,
-                text=True,
-            )
-
-            if result.returncode != 0:
-                print("ffmpeg failed:", file=sys.stderr)
-                print(result.stderr, file=sys.stderr)
-                return
-
-            print()
-            print(f"Done! Clip saved to: {output_path}")
+                print(f"Done! Saved to: {folder_path}")
+                print()
+                clip_number += 1
 
     except Exception as ex:
         print(file=sys.stderr)
